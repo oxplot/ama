@@ -31,7 +31,14 @@
 </head>
 
 <body>
-  <form method="post" onsubmit="javascript:document.getElementById('ask').disabled=true">
+  <script>
+    function disableAskButton() {
+      const el = document.getElementById('ask');
+      el.value = 'hang on ...';
+      el.disabled = true;
+    }
+  </script>
+  <form method="post" onsubmit="javascript:disableAskButton()">
     <div class="content">
       <h1>Ask Me Anything</h1>
       <p>Ask me a question about {{.Topic}} and I'll try to answer it.</p>
