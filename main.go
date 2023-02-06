@@ -171,6 +171,7 @@ func runIndex() error {
 	return gz.Flush()
 }
 
+// loadIndex loads the index from disk.
 func loadIndex() (idx Index, err error) {
 	f, err := os.Open("index.json.gz")
 	if err != nil {
@@ -185,6 +186,7 @@ func loadIndex() (idx Index, err error) {
 	return
 }
 
+// runQuery runs a query against the index.
 func runQuery(idx Index, query string) (string, error) {
 
 	// Get the embedding for the query
@@ -255,6 +257,7 @@ func runQuery(idx Index, query string) (string, error) {
 	return compResp.Choices[0].Text, nil
 }
 
+// runCLI runs the CLI version of the program.
 func runCLI(query string) error {
 
 	idx, err := loadIndex()
@@ -271,6 +274,7 @@ func runCLI(query string) error {
 	return nil
 }
 
+// runServer runs the web server version of the program.
 func runServer() error {
 
 	idx, err := loadIndex()
