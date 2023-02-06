@@ -101,13 +101,15 @@ func runIndex() error {
 
 		f, err := os.Open(path)
 		if err != nil {
-			return err
+			log.Printf("warning: failed to open %s: %v", path, err)
+			continue
 		}
 
 		doc := Document{}
 		if err := json.NewDecoder(f).Decode(&doc); err != nil {
 			f.Close()
-			return err
+			log.Printf("warning: failed to decode %s: %v", path, err)
+			continue
 		}
 		f.Close()
 
@@ -119,7 +121,8 @@ func runIndex() error {
 			Model: gogpt.AdaEmbeddingV2,
 		})
 		if err != nil {
-			return err
+			log.Printf("warning: failed to get embeddings for %s: %v", path, err)
+			continue
 		}
 
 		for i, emb := range resp.Data {
@@ -135,7 +138,7 @@ func runIndex() error {
 
 		docs = append(docs, path)
 
-		log.Printf("- indexed %s (%d chunks)", path, len(chunks))
+		log.Printf("=> Indexed %s (%d chunks)", path, len(chunks))
 	}
 	if sc.Err() != nil {
 		log.Printf("warning: failed to index all documents: %v", sc.Err())
@@ -214,11 +217,12 @@ func runCLI(query string) error {
 		return idx.Embeddings[i].Vector.Distance(qEmb) < idx.Embeddings[j].Vector.Distance(qEmb)
 	})
 
-	// Join the chunk content of the first 3 chunks.
+	// Join the chunk contents until we have 4Kb worth of text.
 
 	var chunks []string
-	for i := 0; i < 3; i++ {
-		chunkRef := idx.ChunkRefs[idx.Embeddings[i].ChunkID]
+	var contextSize int
+	for _, emb := range idx.Embeddings {
+		chunkRef := idx.ChunkRefs[emb.ChunkID]
 		docPath := idx.Documents[chunkRef.DocumentID]
 		f, err := os.Open(docPath)
 		if err != nil {
@@ -230,7 +234,12 @@ func runCLI(query string) error {
 			return err
 		}
 		f.Close()
-		chunks = append(chunks, doc.Chunks()[chunkRef.ChunkNumber])
+		chunkContent := doc.Chunks()[chunkRef.ChunkNumber]
+		if contextSize+len(chunkContent) > 4*1024 {
+			break
+		}
+		chunks = append(chunks, chunkContent)
+		contextSize += len(chunkContent)
 	}
 
 	// Create the prompt
