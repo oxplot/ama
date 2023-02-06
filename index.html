@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name=viewport content="width=device-width, initial-scale=1">
+  <title>AMA: {{.Topic}}</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      font-family: sans-serif;
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    input[type="text"],
+    input[type="submit"] {
+      padding: 0.5em;
+      font-size: 100%;
+      width: 90%;
+    }
+
+    .content {
+      margin: 0.5em auto;
+      max-width: 800px;
+    }
+  </style>
+</head>
+
+<body>
+  <form method="post" onsubmit="javascript:document.getElementById('ask').disabled=true">
+    <div class="content">
+      <h1>Ask Me Anything</h1>
+      <p>Ask me a question about {{.Topic}} and I'll try to answer it.</p>
+      <p>
+        <input type="text" name="q" value="{{.Question}}" placeholder="What is the office hours?" autofocus>
+      </p>
+      <p>
+        <input id="ask" type="submit" value="Ask">
+      </p>
+    </div>
+    {{- if .Error}}
+    <div class="content">
+      <p style="color:red"><b>{{.Error}}</b></p>
+    </div>
+    {{- end}}
+    {{- if .Answer}}
+    <div class="content">
+      <h2>Answer</h2>
+      <p>{{.Answer}}</p>
+    </div>
+    {{- end}}
+  </form>
+</body>
+
+</html>

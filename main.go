@@ -4,9 +4,11 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
+	_ "embed"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"log"
 	"net/http"
 	"os"
@@ -24,7 +26,11 @@ var (
 
 	indexFolderFlag = flag.Bool("index", false, "Index file paths passed on stdin")
 	cliQuery        = flag.String("query", "", "Run in command line mode")
-	listen          = flag.String("listen", ":8080", "Listen address")
+	listen          = flag.String("listen", "127.0.0.1:8080", "Listen address")
+	topic           = flag.String("topic", "TOPIC", "Topic name")
+
+	//go:embed index.html
+	indexHTML string
 )
 
 // Vector is a vector of floats.
@@ -274,9 +280,43 @@ func runServer() error {
 
 	_ = idx
 
+	tpl := template.Must(template.New("index").Parse(indexHTML))
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" {
+			http.NotFound(w, r)
+			return
+		}
+
+		m := map[string]string{
+			"Topic":    *topic,
+			"Question": strings.TrimSpace(r.FormValue("q")),
+		}
+
+		switch r.Method {
+		case http.MethodGet:
+		case http.MethodPost:
+
+			query := m["Question"]
+			if query != "" {
+				answer, err := runQuery(idx, query)
+				if err != nil {
+					log.Printf("error: failed to run query: %s", err)
+					m["Error"] = "Sorry, can't answer this right now - try again later."
+				} else {
+					m["Answer"] = answer
+				}
+			}
+
+		default:
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Add("Content-Type", "text/html; charset=utf-8")
+		tpl.Execute(w, m)
 	})
 
+	log.Printf("=> Listening on http://%s/", *listen)
 	http.ListenAndServe(*listen, nil)
 
 	return nil
