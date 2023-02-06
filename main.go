@@ -8,6 +8,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net/http"
 	"os"
 	"regexp"
 	"sort"
@@ -23,6 +24,7 @@ var (
 
 	indexFolderFlag = flag.Bool("index", false, "Index file paths passed on stdin")
 	cliQuery        = flag.String("query", "", "Run in command line mode")
+	listen          = flag.String("listen", ":8080", "Listen address")
 )
 
 // Vector is a vector of floats.
@@ -163,18 +165,6 @@ func runIndex() error {
 	return gz.Flush()
 }
 
-func runServer() error {
-
-	if openAIAuthToken == "" {
-		return fmt.Errorf("OPENAI_API_KEY is not set")
-	}
-	aiCl := gogpt.NewClient(openAIAuthToken)
-
-	_ = aiCl
-
-	return nil
-}
-
 func loadIndex() (idx Index, err error) {
 	f, err := os.Open("index.json.gz")
 	if err != nil {
@@ -189,14 +179,7 @@ func loadIndex() (idx Index, err error) {
 	return
 }
 
-func runCLI(query string) error {
-
-	// Load the index
-
-	idx, err := loadIndex()
-	if err != nil {
-		return fmt.Errorf("failed to load index: %w", err)
-	}
+func runQuery(idx Index, query string) (string, error) {
 
 	// Get the embedding for the query
 
@@ -207,7 +190,7 @@ func runCLI(query string) error {
 		Model: gogpt.AdaEmbeddingV2,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to get embedding for query: %w", err)
+		return "", fmt.Errorf("failed to get embedding for query: %w", err)
 	}
 	qEmb := resp.Data[0].Embedding
 
@@ -226,12 +209,12 @@ func runCLI(query string) error {
 		docPath := idx.Documents[chunkRef.DocumentID]
 		f, err := os.Open(docPath)
 		if err != nil {
-			return err
+			return "", err
 		}
 		var doc Document
 		if err := json.NewDecoder(f).Decode(&doc); err != nil {
 			f.Close()
-			return err
+			return "", err
 		}
 		f.Close()
 		chunkContent := doc.Chunks()[chunkRef.ChunkNumber]
@@ -260,10 +243,42 @@ func runCLI(query string) error {
 		PresencePenalty:  0,
 	})
 	if err != nil {
-		return fmt.Errorf("completion failed: %w", err)
+		return "", fmt.Errorf("completion failed: %w", err)
 	}
 
-	fmt.Printf("Answer: %s\n", compResp.Choices[0].Text)
+	return compResp.Choices[0].Text, nil
+}
+
+func runCLI(query string) error {
+
+	idx, err := loadIndex()
+	if err != nil {
+		return fmt.Errorf("failed to load index: %w", err)
+	}
+
+	answer, err := runQuery(idx, query)
+	if err != nil {
+		return fmt.Errorf("failed to run query: %w", err)
+	}
+
+	fmt.Println(answer)
+	return nil
+}
+
+func runServer() error {
+
+	idx, err := loadIndex()
+	if err != nil {
+		return fmt.Errorf("failed to load index: %w", err)
+	}
+
+	_ = idx
+
+	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	})
+
+	http.ListenAndServe(*listen, nil)
+
 	return nil
 }
 
@@ -282,6 +297,7 @@ func main() {
 		if err := runCLI(*cliQuery); err != nil {
 			log.Fatal(err)
 		}
+		return
 	}
 
 	if err := runServer(); err != nil {
